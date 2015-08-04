@@ -83,6 +83,19 @@
 						'items' => $items
 					);
 
+					if(isset($order['payment_custom_field'])) {
+					$customFields = require __DIR__.'/../../admin/minifaktura-order-status/custom-fields.php';
+					if(isset($customFields['vatId'])) {
+						$vatIdFieldId = $customFields['vatId'];
+						$invoiceData['client']['vatId'] = $order['payment_custom_field'][$vatIdFieldId];
+					}
+				
+					if(isset($customFields['comId'])) {
+						$comIdFieldId = $customFields['comId'];
+						$invoiceData['client']['comId'] = $order['payment_custom_field'][$comIdFieldId];
+					}
+				}
+				
 					try {
 						$invoice = $api->invoices->create($invoiceData);
 						$invoice_no = $invoice->vs;
@@ -136,7 +149,7 @@
 
 				$api = new \iInvoices\Api\ApiClient($apiDomain, $apiKey, $apiSecret);
 
-				$data = array(
+				$invoiceData = array(
 					'client'	 => array(
 							'email'		 => $order['email'],
 							'company'	 => $order['payment_company'],
@@ -162,8 +175,21 @@
 					'customId'	 => $order_id
 				);
 				
+				if(isset($order['payment_custom_field'])) {
+					$customFields = require __DIR__.'/../../admin/minifaktura-order-status/custom-fields.php';
+					if(isset($customFields['vatId'])) {
+						$vatIdFieldId = $customFields['vatId'];
+						$invoiceData['client']['vatId'] = $order['payment_custom_field'][$vatIdFieldId];
+					}
+				
+					if(isset($customFields['comId'])) {
+						$comIdFieldId = $customFields['comId'];
+						$invoiceData['client']['comId'] = $order['payment_custom_field'][$comIdFieldId];
+					}
+				}
+				
 				try {
-					$api->orders->create($data);
+					$api->orders->create($invoiceData);
 				} catch (\Exception $e) {
 					echo $e->getBody();
 				}
@@ -230,6 +256,19 @@
 					'customId'	 => $order_id
 				);
 
+				if(isset($order['payment_custom_field'])) {
+					$customFields = require __DIR__.'/../../admin/minifaktura-order-status/custom-fields.php';
+					if(isset($customFields['vatId'])) {
+						$vatIdFieldId = $customFields['vatId'];
+						$invoiceData['client']['vatId'] = $order['payment_custom_field'][$vatIdFieldId];
+					}
+				
+					if(isset($customFields['comId'])) {
+						$comIdFieldId = $customFields['comId'];
+						$invoiceData['client']['comId'] = $order['payment_custom_field'][$comIdFieldId];
+					}
+				}
+				
 				try {
 					$api->orders->update($oldOrder->id, $invoiceData);
 				} catch (\Exception $e) {
