@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<modification
+	xmlns="https://github.com/vqmod/vqmod"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="https://github.com/vqmod/vqmod https://raw.githubusercontent.com/vqmod/vqmod/master/vqmod.xsd">
+	>
+	<id>miniFaktura plugin</id>
+	<version>1.0.0</version>
+	<vqmver>2.5.0</vqmver>
+	<author><![CDATA[Martin Bažík <martin@bazo.sk>]]></author>
+
+	<file name="admin/model/sale/order.php">
+		<operation>
+			<search position="top" offset="1"><![CDATA[class]]></search>
+
+			<add><![CDATA[
+				//require 'minifaktura_api/test.php';
+                require 'api-client/vendor/autoload.php';
+				//require 'api-client/loader.php';
+                ]]></add>
+		</operation>
+
+		<operation>
+			<search position="replace"><![CDATA[public function createInvoiceNo]]></search>
+
+			<add><![CDATA[
+                public function createInvoiceNo_old
+                ]]></add>
+		</operation>
+
+		<operation>
+			<search position="before"><![CDATA[public function createInvoiceNo_old]]></search>
+
+			<add><![CDATA[
+				public function createInvoiceNo($order_id)
+				{
+					$order = $this->getOrder($order_id);
+					$products = $this->getOrderProducts($order_id);
+					$this->load->model('setting/setting');
+
+					$items = array();
+
+					foreach($products as $product) {
+						$item = array(
+							'label' => $product['name'],
+							'count' => $product['quantity'],
+							'price' => $product['price'],
+							'tax'=> $product['tax'] / $product['price'] * 100
+
+						);
+
+						$items[] = $item;
+					}
+
+					$apiKey = $this->config->get('minifaktura_apiKey');
+					$apiSecret = $this->config->get('minifaktura_apiSecret');
+					$apiDomain = $this->config->get('minifaktura_apiDomain');
+
+					$api = new \iInvoices\Api\ApiClient($apiDomain, $apiKey, $apiSecret);
+
+					$invoiceData = array(
+						'client'	 => array(
+							'email'		 => $order['email'],
+							'company'	 => $order['payment_company'],
+							'name'		 => $order['payment_firstname'],
+							'surname'	 => $order['payment_lastname'],
+							'street'	 => $order['payment_address_1'],
+							'street2'	 => $order['payment_address_2'],
+							'zip'		 => $order['payment_postcode'],
+							'city'		 => $order['payment_city'],
+							'province'	 => $order['payment_zone'],
+							'country'	 => $order['payment_country'],
+							'shippingCompany'	 => $order['shipping_company'],
+							'shippingName'		 => $order['shipping_firstname'],
+							'shippingSurname'	 => $order['shipping_lastname'],
+							'shippingStreet'	 => $order['shipping_address_1'],
+							'shippingStreet2'	 => $order['shipping_address_2'],
+							'shippingZip'		 => $order['shipping_postcode'],
+							'shippingCity'		 => $order['shipping_city'],
+							'shippingProvince'	 => $order['shipping_zone'],
+							'shippingCountry'	 => $order['shipping_country'],
+						),
+						'items' => $items
+					);
+
+					try {
+						$invoice = $api->invoices->create($invoiceData);
+						$invoice_no = $invoice->vs;
+						$this->db->query("UPDATE `" . DB_PREFIX . "order` SET invoice_no = '" . $invoice_no . "', invoice_prefix = '" . $this->db->escape($order['invoice_prefix']) . "' WHERE order_id = '" . (int)$order_id . "'");
+
+						return $order['invoice_prefix'] . $invoice_no;
+					} catch(\Exception $e) {
+						echo $e->getBody();
+					}
+				}
+			]]></add>
+		</operation>
+
+	</file>
+	<file name="catalog/model/checkout/order.php">
+		<operation>
+			<search position="top" offset="1"><![CDATA[class]]></search>
+
+			<add><![CDATA[
+				//require 'minifaktura_api/test.php';
+                require __DIR__.'/../../admin/api-client/vendor/autoload.php';
+				//require __DIR__.'/../../admin/api-client/loader.php';
+                ]]></add>
+		</operation>
+		
+		<operation>
+			<search position="after" offset="1"><![CDATA[$this->event->trigger('post.order.add', $order_id);]]></search>
+
+			<add><![CDATA[
+
+				$order = $data;
+				$products = $data['products'];
+
+                $items = array();
+
+				foreach ($products as $product) {
+					$item = array(
+						'label'	 => $product['name'],
+						'count'	 => $product['quantity'],
+						'price'	 => $product['price'],
+						'tax'	 => $product['tax'] / $product['price'] * 100
+					);
+
+					$items[] = $item;
+				}
+
+				$this->load->model('setting/setting');
+				$apiKey		 = $this->config->get('minifaktura_apiKey');
+				$apiSecret	 = $this->config->get('minifaktura_apiSecret');
+				$apiDomain	 = $this->config->get('minifaktura_apiDomain');
+
+				$api = new \iInvoices\Api\ApiClient($apiDomain, $apiKey, $apiSecret);
+
+				$data = array(
+					'client'	 => array(
+							'email'		 => $order['email'],
+							'company'	 => $order['payment_company'],
+							'name'		 => $order['payment_firstname'],
+							'surname'	 => $order['payment_lastname'],
+							'street'	 => $order['payment_address_1'],
+							'street2'	 => $order['payment_address_2'],
+							'zip'		 => $order['payment_postcode'],
+							'city'		 => $order['payment_city'],
+							'province'	 => $order['payment_zone'],
+							'country'	 => $order['payment_country'],
+							'shippingCompany'	 => $order['shipping_company'],
+							'shippingName'		 => $order['shipping_firstname'],
+							'shippingSurname'	 => $order['shipping_lastname'],
+							'shippingStreet'	 => $order['shipping_address_1'],
+							'shippingStreet2'	 => $order['shipping_address_2'],
+							'shippingZip'		 => $order['shipping_postcode'],
+							'shippingCity'		 => $order['shipping_city'],
+							'shippingProvince'	 => $order['shipping_zone'],
+							'shippingCountry'	 => $order['shipping_country'],
+						),
+					'items'		 => $items,
+					'customId'	 => $order_id
+				);
+				
+				try {
+					$api->orders->create($data);
+				} catch (\Exception $e) {
+					echo $e->getBody();
+				}
+                ]]></add>
+		</operation>
+		
+		
+		
+		<operation>
+			<search position="after" offset="1"><![CDATA[$this->event->trigger('pre.order.edit', $data);]]></search>
+
+			<add><![CDATA[
+
+				$order = $data;
+				$products = $data['products'];
+                $items = array();
+
+				foreach ($products as $product) {
+					$item = array(
+						'label'	 => $product['name'],
+						'count'	 => $product['quantity'],
+						'price'	 => $product['price'],
+						'tax'	 => $product['tax'] / $product['price'] * 100
+					);
+
+					$items[] = $item;
+				}
+				$this->load->model('setting/setting');
+				$apiKey		 = $this->config->get('minifaktura_apiKey');
+				$apiSecret	 = $this->config->get('minifaktura_apiSecret');
+				$apiDomain	 = $this->config->get('minifaktura_apiDomain');
+				
+				$api = new \iInvoices\Api\ApiClient($apiDomain, $apiKey, $apiSecret);
+				
+				$orders = $api->orders->search(array(
+					'customId' => $order_id
+				));
+				
+				$oldOrder = current($orders->getItems());
+				
+				$invoiceData = array(
+					'client'	 => array(
+							'email'		 => $order['email'],
+							'company'	 => $order['payment_company'],
+							'name'		 => $order['payment_firstname'],
+							'surname'	 => $order['payment_lastname'],
+							'street'	 => $order['payment_address_1'],
+							'street2'	 => $order['payment_address_2'],
+							'zip'		 => $order['payment_postcode'],
+							'city'		 => $order['payment_city'],
+							'province'	 => $order['payment_zone'],
+							'country'	 => $order['payment_country'],
+							'shippingCompany'	 => $order['shipping_company'],
+							'shippingName'		 => $order['shipping_firstname'],
+							'shippingSurname'	 => $order['shipping_lastname'],
+							'shippingStreet'	 => $order['shipping_address_1'],
+							'shippingStreet2'	 => $order['shipping_address_2'],
+							'shippingZip'		 => $order['shipping_postcode'],
+							'shippingCity'		 => $order['shipping_city'],
+							'shippingProvince'	 => $order['shipping_zone'],
+							'shippingCountry'	 => $order['shipping_country'],
+						),
+					'items'		 => $items,
+					'customId'	 => $order_id
+				);
+
+				try {
+					$api->orders->update($oldOrder->id, $invoiceData);
+				} catch (\Exception $e) {
+				
+					echo $e->getBody();
+				}
+				
+                ]]></add>
+		</operation>
+		
+		<operation>
+			<search position="after" offset="3"><![CDATA[$this->event->trigger('pre.order.history.add', $order_id);]]></search>
+
+			<add><![CDATA[
+
+				$statusId = (int)$order_status_id;
+				if($statusId !== 0) {
+			
+					$this->load->model('setting/setting');
+					$apiKey		 = $this->config->get('minifaktura_apiKey');
+					$apiSecret	 = $this->config->get('minifaktura_apiSecret');
+					$apiDomain	 = $this->config->get('minifaktura_apiDomain');
+
+					$api = new \iInvoices\Api\ApiClient($apiDomain, $apiKey, $apiSecret);
+
+					$statusMap = require __DIR__.'/../../admin/minifaktura-order-status/status.php';
+				
+					$status = $statusMap[$statusId];
+				
+					$updateData  = array(
+						'orderStatus' => $status
+					);
+
+					$orders = $api->orders->search(array(
+						'customId' => $order_id
+					));
+
+					$oldOrder = current($orders->getItems());
+
+					try {
+						$api->orders->update($oldOrder->id, $updateData );
+					} catch (\Exception $e) {
+						echo $e->getBody();exit;
+					}
+				}
+                ]]></add>
+		</operation>
+	</file>
+</modification>
